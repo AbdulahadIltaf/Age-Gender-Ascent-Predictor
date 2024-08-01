@@ -10,7 +10,7 @@ import pandas as pd
 from sklearn.preprocessing import LabelEncoder, StandardScaler
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LinearRegression
-import smtplib
+#import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
