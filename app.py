@@ -330,4 +330,4 @@ def stop_record():
         return jsonify({'error': 'Not currently recording'})
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run()
