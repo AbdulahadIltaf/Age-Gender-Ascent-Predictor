@@ -14,6 +14,7 @@ import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
+
 app = Flask(__name__, static_folder='assets', template_folder='.')
 
 # Ensure the uploads directory exists
@@ -30,19 +31,28 @@ recording_thread = None
 frames = []
 is_recording = False
 
+
+# Construct the path to the CSV file
+directory = os.path.dirname(os.path.abspath(__file__))
+
+
 # Load data (assuming CSV format)
-train = pd.read_csv('Ntrain.csv')
-test = pd.read_csv('Ntest.csv')
+train = pd.read_csv(os.path.join(directory, 'Ntrain.csv'))
+test = pd.read_csv(os.path.join(directory, 'Ntest.csv'))
+
+train = pd.concat([train, test])
 
 train = train.drop(columns='Unnamed: 0')
 test = test.drop(columns='Unnamed: 0')
 
+
+password_path = 'password.txt'
 # Label encode the categorical columns
 label_encoders = {}
 for column in ['age', 'gender', 'accent']:
     le = LabelEncoder()
     train[column] = le.fit_transform(train[column])
-    test[column] = le.transform(test[column])
+    # test[column] = le.transform(test[column])
     label_encoders[column] = le
 
 # Separate features and target variables
@@ -51,15 +61,15 @@ y_train_age = train['age']
 y_train_gender = train['gender']
 y_train_accent = train['accent']
 
-X_test = test.drop(columns=['age', 'gender', 'accent'])
-y_test_age = test['age']
-y_test_gender = test['gender']
-y_test_accent = test['accent']
+# X_test = test.drop(columns=['age', 'gender', 'accent'])
+# y_test_age = test['age']
+# y_test_gender = test['gender']
+# y_test_accent = test['accent']
 
 # Scale the features
 scaler = StandardScaler()
 X_train_scaled = scaler.fit_transform(X_train)
-X_test_scaled = scaler.transform(X_test)
+# X_test_scaled = scaler.transform(X_test)
 
 # Determine unique class labels
 unique_age_labels = y_train_age.unique()
@@ -111,10 +121,10 @@ def predict_features(features_dict):
     # Scale the features
     features_scaled = scaler.transform(features)
     
-    # Apply feature-based predictions first
-    age_prediction = predict_age(features[0]) if 'predict_age' in globals() else None
-    gender_prediction = predict_gender(features[0]) if 'predict_gender' in globals() else None
-    accent_prediction = predict_accent(features[0]) if 'predict_accent' in globals() else None
+    # # Apply feature-based predictions first
+    # age_prediction = predict_age(features[0]) if 'predict_age' in globals() else None
+    # gender_prediction = predict_gender(features[0]) if 'predict_gender' in globals() else None
+    # accent_prediction = predict_accent(features[0]) if 'predict_accent' in globals() else None
     
     # Predict using classifiers
     age_pred_class = age_clf.predict(features_scaled)[0]
@@ -195,61 +205,6 @@ def load_audio_from_file(file_storage):
     return audio, sr
 
 
-
-
-app.secret_key = '9b4c5a3f9eab7c41d5e917c7b79de2f2'  # Required for flash messages
-
-password_path = 'password.txt'  # Update this path as needed
-
-@app.route('/send_email', methods=['POST'])
-def handle_form_submission():
-    name = request.form.get('name')
-    email = request.form.get('email')
-    comment = request.form.get('comment')
-
-    try:
-        send_email(name, email, comment)
-        flash('Your message has been sent successfully!', 'success')
-    except Exception as e:
-        flash(f'An error occurred: {e}', 'danger')
-
-    return redirect(url_for('index'))
-
-def read_smtp_credentials():
-    with open(password_path, 'r') as file:
-        lines = file.readlines()
-        smtp_username = lines[0].strip()
-        smtp_password = lines[1].strip()
-    return smtp_username, smtp_password
-
-def send_email(name, email, comment):
-    smtp_username, smtp_password = read_smtp_credentials()
-
-    # Create the email message
-    msg = MIMEMultipart()
-    msg['From'] = smtp_username
-    msg['To'] = "iltafabdulahad@gmail.com"  # Receiver's email
-    msg['Subject'] = f"New Contact Form Submission from {name}"
-
-    # Compose the body of the email
-    body = f"Name: {name}\nEmail: {email}\n\nMessage:\n{comment}"
-    msg.attach(MIMEText(body, 'plain'))
-
-    try:
-        # Connect to the SMTP server
-        with smtplib.SMTP("smtp.gmail.com", 587) as server:
-            server.starttls()  # Secure the connection
-            server.login(smtp_username, smtp_password)
-
-            # Send the email
-            server.sendmail(smtp_username, "iltafabdulahad@gmail.com", msg.as_string())
-            print("Email sent successfully!")
-
-    except Exception as e:
-        print(f"Error: {e}")
-
-
-
 @app.route('/')
 def index():
     return render_template('index.html')
@@ -266,7 +221,7 @@ def upload_file():
     features = extract_acoustic_features(file_path)
     predictions = predict_features(features)
     os.remove(file_path)
-    print(predictions)
+    # print(predictions)
 
     return jsonify({
         'age': predictions[0],
@@ -318,7 +273,7 @@ def stop_record():
         features = extract_acoustic_features(os.path.join(UPLOAD_FOLDER, 'record.wav'))
         predictions = predict_features(features)
         os.remove(os.path.join(UPLOAD_FOLDER, 'record.wav'))
-        print(predictions)
+        # print(predictions)
 
         return jsonify({
             'message': 'Recording stopped',
@@ -329,5 +284,57 @@ def stop_record():
     else:
         return jsonify({'error': 'Not currently recording'})
 
+@app.route('/send_email', methods=['POST'])
+def handle_form_submission():
+    name = request.form['name']
+    email = request.form['email']
+    comment = request.form['comment']
+    comment = "Audio Predictor\n"+comment
+    try:
+        send_email(name, email, comment)
+        flash('Your message has been sent successfully!', 'success')
+    except Exception as e:
+        flash(f'An error occurred: {e}', 'danger')
+
+    return redirect(url_for('index'))
+
+def read_smtp_credentials():
+    try:
+        with open(password_path, 'r') as file:
+            lines = file.readlines()
+            smtp_username = lines[0].strip()
+            smtp_password = lines[1].strip()
+        return smtp_username, smtp_password
+    except Exception as e:
+        raise RuntimeError(f"Error reading SMTP credentials: {e}")
+
+def send_email(name, email, comment):
+    smtp_username, smtp_password = read_smtp_credentials()
+
+    # Create the email message
+    msg = MIMEMultipart()
+    msg['From'] = smtp_username
+    msg['To'] = "iltafabdulahad@gmail.com"  # Receiver's email
+    msg['Subject'] = f"New Contact Form Submission from {name}"
+
+    # Compose the body of the email (name, email, message)
+    body = f"Name: {name}\nEmail: {email}\n\nMessage:\n{comment}"
+    msg.attach(MIMEText(body, 'plain'))
+
+    try:
+        # Connect to the SMTP server
+        with smtplib.SMTP("smtp.gmail.com", 587) as server:
+            server.starttls()  # Secure the connection
+            server.login(smtp_username, smtp_password)
+
+            # Send the email
+            server.sendmail(smtp_username, "iltafabdulahad@gmail.com", msg.as_string())
+            print("Email sent successfully!")
+
+    except Exception as e:
+        print(f"Error: {e}")
+        raise RuntimeError(f"Error sending email: {e}")
+
 if __name__ == '__main__':
+    app.secret_key = 'super_secret_key'  # Change this to your preferred secret key
     app.run(debug=True)
